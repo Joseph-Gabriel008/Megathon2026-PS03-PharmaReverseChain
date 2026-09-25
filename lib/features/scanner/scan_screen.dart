@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -314,12 +313,12 @@ class _ScanScreenState extends State<ScanScreen>
         });
       }
 
-      final imageFile = File(picked.path);
+      final imageBytes = await picked.readAsBytes();
 
       // Check if image contains a readable barcode or QR code
       if (_scannerController != null) {
         try {
-          final barcodeCapture = await _scannerController!.analyzeImage(imageFile.path);
+          final barcodeCapture = await _scannerController!.analyzeImage(picked.path);
           if (barcodeCapture != null && barcodeCapture.barcodes.isNotEmpty) {
             final raw = barcodeCapture.barcodes.first.rawValue;
             if (raw != null && raw.trim().isNotEmpty) {
@@ -331,37 +330,61 @@ class _ScanScreenState extends State<ScanScreen>
       }
 
       // Run AI OCR on packaging
-      final ocrResult = await gemini.extractBatchFromImage(imageFile);
+      final ocrResult = await gemini.extractBatchFromImage(
+        picked,
+        bytes: imageBytes,
+        path: picked.path,
+      );
 
       if (!mounted) return;
 
       if (!ocrResult.success ||
+          ocrResult.isWrongItemDetected ||
           ocrResult.batchNumber == null ||
           ocrResult.batchNumber!.trim().isEmpty) {
         if (_phase == _ScanPhase.camera) {
           _scannerController?.start();
         }
+        HapticFeedback.vibrate();
+        final errText = ocrResult.errorMessage ??
+            'Wrong item detected: Expected authentic tablet packaging or medicine product.';
+        _showScannerNotice('⚠️ WRONG ITEM DETECTED');
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
               children: [
-                const Icon(Icons.info_outline, color: Colors.amberAccent, size: 20),
+                const Icon(Icons.gpp_bad_rounded, color: Colors.white, size: 22),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
-                    ocrResult.errorMessage ??
-                        'No pharmaceutical batch detected. Ensure packaging label is visible.',
-                    style: MediLoopText.inter(size: 13, color: Colors.white),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'WRONG ITEM DETECTED',
+                        style: MediLoopText.inter(
+                          size: 13,
+                          weight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        errText,
+                        style: MediLoopText.inter(size: 12, color: Colors.white70),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
-            backgroundColor: const Color(0xFF1E293B),
+            backgroundColor: MediLoopColors.critical,
             behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 4),
+            duration: const Duration(seconds: 5),
             action: SnackBarAction(
               label: 'Manual Entry',
-              textColor: const Color(0xFF10B981),
+              textColor: Colors.white,
               onPressed: () {
                 _batchNumberCtrl.clear();
                 _medicineNameCtrl.clear();
@@ -438,12 +461,12 @@ class _ScanScreenState extends State<ScanScreen>
         });
       }
 
-      final imageFile = File(picked.path);
+      final imageBytes = await picked.readAsBytes();
 
       // Check if image contains a barcode/QR
       if (_scannerController != null) {
         try {
-          final barcodeCapture = await _scannerController!.analyzeImage(imageFile.path);
+          final barcodeCapture = await _scannerController!.analyzeImage(picked.path);
           if (barcodeCapture != null && barcodeCapture.barcodes.isNotEmpty) {
             final raw = barcodeCapture.barcodes.first.rawValue;
             if (raw != null && raw.trim().isNotEmpty) {
@@ -454,37 +477,61 @@ class _ScanScreenState extends State<ScanScreen>
         } catch (_) {}
       }
 
-      final ocrResult = await gemini.extractBatchFromImage(imageFile);
+      final ocrResult = await gemini.extractBatchFromImage(
+        picked,
+        bytes: imageBytes,
+        path: picked.path,
+      );
 
       if (!mounted) return;
 
       if (!ocrResult.success ||
+          ocrResult.isWrongItemDetected ||
           ocrResult.batchNumber == null ||
           ocrResult.batchNumber!.trim().isEmpty) {
         if (_phase == _ScanPhase.camera) {
           _scannerController?.start();
         }
+        HapticFeedback.vibrate();
+        final errText = ocrResult.errorMessage ??
+            'Wrong item detected: Expected authentic tablet packaging or medicine product.';
+        _showScannerNotice('⚠️ WRONG ITEM DETECTED');
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
               children: [
-                const Icon(Icons.info_outline, color: Colors.amberAccent, size: 20),
+                const Icon(Icons.gpp_bad_rounded, color: Colors.white, size: 22),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
-                    ocrResult.errorMessage ??
-                        'No pharmaceutical batch detected in photo. Ensure label is clearly legible.',
-                    style: MediLoopText.inter(size: 13, color: Colors.white),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'WRONG ITEM DETECTED',
+                        style: MediLoopText.inter(
+                          size: 13,
+                          weight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        errText,
+                        style: MediLoopText.inter(size: 12, color: Colors.white70),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
-            backgroundColor: const Color(0xFF1E293B),
+            backgroundColor: MediLoopColors.critical,
             behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 4),
+            duration: const Duration(seconds: 5),
             action: SnackBarAction(
               label: 'Manual Entry',
-              textColor: const Color(0xFF10B981),
+              textColor: Colors.white,
               onPressed: () {
                 _batchNumberCtrl.clear();
                 _medicineNameCtrl.clear();

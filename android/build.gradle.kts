@@ -16,21 +16,19 @@ subprojects {
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
 subprojects {
-    project.evaluationDependsOn(":app")
-}
-
-subprojects {
     plugins.withId("com.android.library") {
         extensions.configure<com.android.build.gradle.LibraryExtension> {
             compileSdk = 36
-        }
-    }
-    plugins.withId("com.android.application") {
-        extensions.configure<com.android.build.gradle.AppExtension> {
-            compileSdkVersion(36)
+            buildToolsVersion = "35.0.0"
         }
     }
 }
+
+subprojects {
+    project.evaluationDependsOn(":app")
+}
+
+
 
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)

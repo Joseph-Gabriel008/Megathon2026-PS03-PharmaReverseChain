@@ -349,28 +349,38 @@ class _LoginScreenState extends State<LoginScreen> {
             const Expanded(child: Divider()),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: Text(
-                'ONE-TAP ROLE DEMO ACCESS',
-                style: MediLoopText.caption.copyWith(
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.5,
-                  color: MediLoopColors.textMuted,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: MediLoopColors.ink.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: MediLoopColors.line, width: 1),
+                ),
+                child: Text(
+                  'ONE-TAP ROLE DEMO ACCESS',
+                  style: MediLoopText.caption.copyWith(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.8,
+                    color: MediLoopColors.textPrimary,
+                    fontSize: 11,
+                  ),
                 ),
               ),
             ),
             const Expanded(child: Divider()),
           ],
         ),
-        const SizedBox(height: MediLoopSpacing.md),
+        const SizedBox(height: MediLoopSpacing.lg),
         Wrap(
-          spacing: 10,
-          runSpacing: 10,
+          spacing: 12,
+          runSpacing: 12,
           alignment: WrapAlignment.center,
           children: [
             _RoleQuickCard(
               id: 'demo_retailer',
               role: 'Pharmacy',
               subtitle: 'Apollo Pharmacy',
+              tag: 'POS Retail',
               icon: Icons.local_pharmacy_rounded,
               color: MediLoopColors.accent,
               onTap: auth.isLoading ? null : () => _demoLogin('retailer'),
@@ -379,6 +389,7 @@ class _LoginScreenState extends State<LoginScreen> {
               id: 'demo_distributor',
               role: 'Distributor',
               subtitle: 'MedPlus Logistics',
+              tag: 'Reverse Chain',
               icon: Icons.local_shipping_rounded,
               color: MediLoopColors.attention,
               onTap: auth.isLoading ? null : () => _demoLogin('distributor'),
@@ -387,6 +398,7 @@ class _LoginScreenState extends State<LoginScreen> {
               id: 'demo_manufacturer',
               role: 'Manufacturer',
               subtitle: 'Sun Pharma',
+              tag: 'Batch Lifecycle',
               icon: Icons.factory_rounded,
               color: const Color(0xFF8B5CF6),
               onTap: auth.isLoading ? null : () => _demoLogin('manufacturer'),
@@ -395,6 +407,7 @@ class _LoginScreenState extends State<LoginScreen> {
               id: 'demo_facility',
               role: 'Waste Plant',
               subtitle: 'BioClean Facility',
+              tag: 'Destruction CoD',
               icon: Icons.delete_sweep_rounded,
               color: MediLoopColors.verified,
               onTap: auth.isLoading ? null : () => _demoLogin('facility'),
@@ -403,6 +416,7 @@ class _LoginScreenState extends State<LoginScreen> {
               id: 'demo_admin',
               role: 'Regulator',
               subtitle: 'CDSCO Controller',
+              tag: 'Audit Surveillance',
               icon: Icons.security_rounded,
               color: MediLoopColors.ink,
               onTap: auth.isLoading ? null : () => _demoLogin('admin'),
@@ -410,9 +424,20 @@ class _LoginScreenState extends State<LoginScreen> {
           ],
         ),
         const SizedBox(height: MediLoopSpacing.md),
-        Text(
-          'Instant logins pre-populated with CDSCO audit trail data',
-          style: MediLoopText.caption.copyWith(fontSize: 11.5),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.shield_outlined, size: 13, color: MediLoopColors.verified),
+            const SizedBox(width: 5),
+            Text(
+              'Instant logins pre-populated with live CDSCO audit trail data',
+              style: MediLoopText.caption.copyWith(
+                fontSize: 11.5,
+                color: MediLoopColors.textMuted,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -423,6 +448,7 @@ class _RoleQuickCard extends StatefulWidget {
   final String id;
   final String role;
   final String subtitle;
+  final String tag;
   final IconData icon;
   final Color color;
   final VoidCallback? onTap;
@@ -431,6 +457,7 @@ class _RoleQuickCard extends StatefulWidget {
     required this.id,
     required this.role,
     required this.subtitle,
+    required this.tag,
     required this.icon,
     required this.color,
     this.onTap,
@@ -441,67 +468,119 @@ class _RoleQuickCard extends StatefulWidget {
 }
 
 class _RoleQuickCardState extends State<_RoleQuickCard> {
+  bool _isHovered = false;
   bool _isPressed = false;
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedScale(
-      scale: _isPressed ? 0.96 : 1.0,
-      duration: const Duration(milliseconds: 100),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          key: Key(widget.id),
-          onHighlightChanged: (val) => setState(() => _isPressed = val),
-          onTap: widget.onTap,
-          borderRadius: BorderRadius.circular(10),
-          child: Container(
-            width: 130,
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-            decoration: BoxDecoration(
-              color: MediLoopColors.surface,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: MediLoopColors.line, width: 1),
-              boxShadow: MediLoopShadows.card,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: widget.color.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(6),
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: AnimatedScale(
+        scale: _isPressed ? 0.95 : (_isHovered ? 1.03 : 1.0),
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOutCubic,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            key: Key(widget.id),
+            onHighlightChanged: (val) => setState(() => _isPressed = val),
+            onTap: widget.onTap,
+            borderRadius: BorderRadius.circular(14),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: 138,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: MediLoopColors.surface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: _isHovered
+                      ? widget.color.withValues(alpha: 0.5)
+                      : MediLoopColors.line,
+                  width: _isHovered ? 1.5 : 1,
+                ),
+                boxShadow: _isHovered
+                    ? [
+                        BoxShadow(
+                          color: widget.color.withValues(alpha: 0.18),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ]
+                    : MediLoopShadows.card,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(7),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              widget.color.withValues(alpha: 0.15),
+                              widget.color.withValues(alpha: 0.05),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(9),
+                          border: Border.all(
+                            color: widget.color.withValues(alpha: 0.2),
+                            width: 0.8,
+                          ),
+                        ),
+                        child: Icon(widget.icon, size: 18, color: widget.color),
                       ),
-                      child: Icon(widget.icon, size: 16, color: widget.color),
-                    ),
-                    const Icon(
-                      Icons.arrow_forward_ios_rounded,
-                      size: 10,
-                      color: MediLoopColors.textSubtle,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  widget.role,
-                  style: MediLoopText.inter(
-                    size: 12.5,
-                    weight: FontWeight.w700,
-                    color: MediLoopColors.ink,
+                      Icon(
+                        Icons.arrow_forward_rounded,
+                        size: 13,
+                        color: _isHovered ? widget.color : MediLoopColors.textSubtle,
+                      ),
+                    ],
                   ),
-                ),
-                Text(
-                  widget.subtitle,
-                  style: MediLoopText.caption.copyWith(fontSize: 10.5),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+                  const SizedBox(height: 10),
+                  Text(
+                    widget.role,
+                    style: MediLoopText.inter(
+                      size: 13.5,
+                      weight: FontWeight.w700,
+                      color: MediLoopColors.ink,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    widget.subtitle,
+                    style: MediLoopText.caption.copyWith(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: widget.color.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      widget.tag,
+                      style: MediLoopText.inter(
+                        size: 9.5,
+                        weight: FontWeight.w700,
+                        color: widget.color,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

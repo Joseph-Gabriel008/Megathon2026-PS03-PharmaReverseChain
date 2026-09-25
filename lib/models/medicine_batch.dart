@@ -221,6 +221,8 @@ class BatchOcrResult {
   final bool success;
   final String? errorMessage;
   final bool isOfflineBackup;
+  final bool isWrongItemDetected;
+  final String? detectedItemType;
 
   const BatchOcrResult({
     this.batchNumber,
@@ -229,5 +231,8 @@ class BatchOcrResult {
     required this.success,
     this.errorMessage,
     this.isOfflineBackup = false,
+    this.isWrongItemDetected = false,
+    this.detectedItemType,
   });
 }
+
