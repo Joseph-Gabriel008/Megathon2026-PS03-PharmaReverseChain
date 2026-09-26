@@ -26,6 +26,10 @@ dependencies:
   # AI
   google_generative_ai: ^0.4.7
 
+  # Voice AI Assistant
+  flutter_tts: ^4.2.0
+  speech_to_text: ^7.0.0
+
   # Offline queue
   shared_preferences: ^2.3.4
 

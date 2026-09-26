@@ -13,12 +13,14 @@ import '../../repositories/organization_repository.dart';
 import '../../services/auth_service.dart';
 import '../../services/evidence_service.dart';
 import '../../services/qr_service.dart';
+import '../../services/gemini_service.dart';
 import '../../models/reverse_request.dart';
 import '../../models/medicine_batch.dart';
 import '../../models/organization.dart';
 import '../../widgets/batch_card.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/app_back_scope.dart';
+import '../../widgets/voice_assistant_widget.dart';
 
 class DistributorShell extends StatelessWidget {
   final Widget child;
@@ -32,7 +34,7 @@ class DistributorShell extends StatelessWidget {
     return AppBackScope(
       homeRoute: '/distributor',
       child: Scaffold(
-        body: child,
+        body: VoiceAssistantOverlay(child: child),
         bottomNavigationBar: NavigationBar(
           selectedIndex: index,
           onDestinationSelected: (i) {
@@ -123,6 +125,18 @@ class _DistributorDashboardPageState
         _pendingConfirmations = confs;
         _loading = false;
       });
+
+      // Sync distributor dashboard context with Voice Assistant
+      try {
+        final active = data.where((p) => p.effectiveStage != 'COMPLETED').length;
+        context.read<VoiceAssistantController>().setScreenContext(
+          'Distributor Reverse Logistics Dashboard. '
+          'Active reverse pickups: $active. '
+          'Pending dual-custody confirmations: ${confs.length}. '
+          'Total scheduled consignments: ${data.length}. '
+          'Chain-of-custody transfer and tracking active.',
+        );
+      } catch (_) {}
     }
   }
 
@@ -948,6 +962,43 @@ class _PickupVerificationSheetState extends State<_PickupVerificationSheet> {
         imageQuality: 85,
       );
       if (picked != null && mounted) {
+        final gemini = context.read<GeminiService>();
+        final imageBytes = await picked.readAsBytes();
+        if (!mounted) return;
+        final req = widget.pickup.reverseRequest;
+
+        // Strictly enforce that proof must be an authentic tablet strip
+        final validation = await gemini.validateMedicinePackaging(
+          picked,
+          bytes: imageBytes,
+          expectedMedicineName: req?.medicineName,
+          expectedBatchNumber: req?.batchNumber,
+        );
+
+        if (!validation.isValid) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                backgroundColor: MediLoopColors.critical,
+                duration: const Duration(seconds: 4),
+                content: Row(
+                  children: [
+                    const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        validation.message,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+          return;
+        }
+
         setState(() {
           _distributorPhotoPath = picked.path;
         });
@@ -961,7 +1012,6 @@ class _PickupVerificationSheetState extends State<_PickupVerificationSheet> {
             _verifyProduct(qrCode);
           } else {
             // Auto-assist if product not yet verified
-            final req = widget.pickup.reverseRequest;
             if (_productStatus != _ProductVerificationStatus.verified &&
                 req?.batchNumber != null &&
                 req!.batchNumber!.isNotEmpty) {
@@ -1551,7 +1601,7 @@ class _PickupVerificationSheetState extends State<_PickupVerificationSheet> {
                   const SizedBox(width: 8),
                   IconButton(
                     icon: const Icon(Icons.auto_awesome, color: MediLoopColors.accent),
-                    tooltip: 'Use Demo Photo & Verify',
+                    tooltip: 'Sample Packaging Strip',
                     onPressed: _useDemoPhoto,
                   ),
                 ],
@@ -2135,6 +2185,40 @@ class _WarehouseDisposalSheetState extends State<_WarehouseDisposalSheet> {
       imageQuality: 85,
     );
     if (picked == null) return;
+
+    final imageBytes = await picked.readAsBytes();
+    if (!mounted) return;
+    final gemini = context.read<GeminiService>();
+    final validation = await gemini.validateMedicinePackaging(
+      picked,
+      bytes: imageBytes,
+      expectedMedicineName: _selectedBatch?.medicineName,
+      expectedBatchNumber: _selectedBatch?.batchNumber,
+    );
+
+    if (!validation.isValid) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: MediLoopColors.critical,
+            duration: const Duration(seconds: 4),
+            content: Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    validation.message,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+      return;
+    }
 
     bool qrOk = false;
     if (_selectedBatch != null) {

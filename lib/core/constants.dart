@@ -21,7 +21,7 @@ class AppConstants {
     if (fromEnv.isNotEmpty) return fromEnv;
     return utf8.decode(base64Decode('QVEuQWI4Uk42SkJRb1gwZmxOOWtfa09DSkgzSTItMkJrUnZKblBpbnc0R2tIYXFuRTBENlE='));
   }
-  static const String geminiModel = 'gemini-3.6-flash';
+  static const String geminiModel = 'gemini-1.5-flash';
 
   // ───────────────────────────────────────────────────────
   //  Demo credentials (seeded in Supabase Auth)
@@ -33,6 +33,7 @@ class AppConstants {
     'manufacturer': 'manufacturer@demo.com',
     'facility': 'facility@demo.com',
     'admin': 'admin@demo.com',
+    'regulator': 'regulator@demo.com', // Alias → same REGULATOR account
   };
 
   // ───────────────────────────────────────────────────────

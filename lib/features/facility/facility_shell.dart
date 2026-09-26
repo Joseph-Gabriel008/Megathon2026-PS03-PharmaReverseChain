@@ -12,12 +12,14 @@ import '../../services/auth_service.dart';
 import '../../services/storage_service.dart';
 import '../../services/evidence_service.dart';
 import '../../services/qr_service.dart';
+import '../../services/gemini_service.dart';
 import '../../models/medicine_batch.dart';
 import '../../models/disposal_record.dart';
 import '../../widgets/batch_card.dart';
 import '../../widgets/lifecycle_pipeline.dart';
 import '../../widgets/cdsco_certificate_viewer.dart';
 import '../../widgets/app_back_scope.dart';
+import '../../widgets/voice_assistant_widget.dart';
 
 class FacilityShell extends StatelessWidget {
   final Widget child;
@@ -31,7 +33,7 @@ class FacilityShell extends StatelessWidget {
     return AppBackScope(
       homeRoute: '/facility',
       child: Scaffold(
-        body: child,
+        body: VoiceAssistantOverlay(child: child),
         bottomNavigationBar: NavigationBar(
           selectedIndex: index,
           onDestinationSelected: (i) {
@@ -118,6 +120,15 @@ class _FacilityDashboardPageState extends State<FacilityDashboardPage> {
         _assigned = data;
         _loading = false;
       });
+
+      // Sync waste facility dashboard context with Voice Assistant
+      try {
+        context.read<VoiceAssistantController>().setScreenContext(
+          'Waste Facility Destruction Dashboard. '
+          'Batches assigned for authorized destruction: ${data.length}. '
+          'CDSCO environmental disposal regulations and certificate generation active.',
+        );
+      } catch (_) {}
     }
   }
 
@@ -522,6 +533,40 @@ class _RecordDestructionSheetState
         imageQuality: 85,
       );
       if (picked == null) return;
+
+      final imageBytes = await picked.readAsBytes();
+      if (!mounted) return;
+      final gemini = context.read<GeminiService>();
+      final validation = await gemini.validateMedicinePackaging(
+        picked,
+        bytes: imageBytes,
+        expectedMedicineName: widget.batch.medicineName,
+        expectedBatchNumber: widget.batch.batchNumber,
+      );
+
+      if (!validation.isValid) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: MediLoopColors.critical,
+              duration: const Duration(seconds: 4),
+              content: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      validation.message,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+        return;
+      }
 
       final qr = await QrService.decodeFromFile(File(picked.path));
       final ok = (qr != null && QrService.decodeBatchQr(qr) == widget.batch.id);

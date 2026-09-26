@@ -9,6 +9,7 @@ import 'core/router.dart';
 import 'services/auth_service.dart';
 import 'services/gemini_service.dart';
 import 'services/fraud_detection_service.dart';
+import 'services/ml_risk_service.dart';
 import 'services/storage_service.dart';
 import 'services/batch_lifecycle_service.dart';
 import 'services/qr_service.dart';
@@ -23,6 +24,8 @@ import 'repositories/disposal_repository.dart';
 import 'repositories/organization_repository.dart';
 import 'repositories/evidence_repository.dart';
 import 'repositories/confirmation_repository.dart';
+
+import 'widgets/voice_assistant_widget.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -49,9 +52,13 @@ class MediLoopApp extends StatelessWidget {
         ChangeNotifierProvider(
           create: (_) => AuthService(client),
         ),
+        ChangeNotifierProvider(
+          create: (_) => VoiceAssistantController(),
+        ),
         Provider(create: (_) => GeminiService()),
         Provider(create: (_) => FraudDetectionService(client)),
         Provider(create: (_) => StorageService(client)),
+        Provider(create: (_) => MlRiskService.instance),
 
         // ── Repositories ──────────────────────────────────────────────────
         Provider(create: (_) => BatchRepository(client)),

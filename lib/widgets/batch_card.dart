@@ -139,23 +139,29 @@ class _BatchCardState extends State<BatchCard> {
                             color: MediLoopColors.lineLight,
                           ),
                           const SizedBox(height: 10),
-                          Row(
+                          Wrap(
+                            alignment: WrapAlignment.spaceBetween,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: 10,
+                            runSpacing: 6,
                             children: [
-                              _MetaChip(
-                                icon: Icons.event_rounded,
-                                label: 'Exp $expiryStr',
-                                warning: widget.batch.isExpiringSoon,
-                                critical: widget.batch.isExpired,
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _MetaChip(
+                                    icon: Icons.event_rounded,
+                                    label: 'Exp $expiryStr',
+                                    warning: widget.batch.isExpiringSoon,
+                                    critical: widget.batch.isExpired,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  _MetaChip(
+                                    icon: Icons.inventory_2_outlined,
+                                    label: '${widget.batch.currentQuantity} units',
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 14),
-                              _MetaChip(
-                                icon: Icons.inventory_2_outlined,
-                                label: '${widget.batch.currentQuantity} units',
-                              ),
-                              if (widget.trailing != null) ...[
-                                const Spacer(),
-                                widget.trailing!,
-                              ],
+                              if (widget.trailing != null) widget.trailing!,
                             ],
                           ),
                           if (widget.batch.isExpired ||

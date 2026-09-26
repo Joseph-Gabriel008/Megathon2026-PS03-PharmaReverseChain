@@ -198,7 +198,7 @@ class _LoginScreenState extends State<LoginScreen> {
               decoration: const InputDecoration(
                 labelText: 'License / Email address or Role',
                 prefixIcon: Icon(Icons.alternate_email_rounded, size: 18),
-                hintText: 'e.g. distributor@demo.com or distributor',
+                hintText: 'e.g. distributor or distributor@mediloop.gov.in',
               ),
               validator: (v) {
                 if (v == null || v.trim().isEmpty) {
@@ -218,7 +218,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 if (validRoles.contains(clean) || clean.contains('@')) {
                   return null;
                 }
-                return 'Enter a valid email (e.g. distributor@demo.com)';
+                return 'Enter a valid email or role (e.g. distributor)';
               },
             ),
 
@@ -256,7 +256,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     size: 13, color: MediLoopColors.textSubtle),
                 const SizedBox(width: 5),
                 Text(
-                  'Demo Password: ${AppConstants.demoPassword}',
+                  'Default Password: ${AppConstants.demoPassword}',
                   style: MediLoopText.caption.copyWith(
                     fontSize: 11.5,
                     color: MediLoopColors.accent,
@@ -357,7 +357,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   border: Border.all(color: MediLoopColors.line, width: 1),
                 ),
                 child: Text(
-                  'ONE-TAP ROLE DEMO ACCESS',
+                  'ONE-TAP ROLE ACCESS',
                   style: MediLoopText.caption.copyWith(
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.8,
@@ -413,13 +413,13 @@ class _LoginScreenState extends State<LoginScreen> {
               onTap: auth.isLoading ? null : () => _demoLogin('facility'),
             ),
             _RoleQuickCard(
-              id: 'demo_admin',
+              id: 'demo_regulator',
               role: 'Regulator',
-              subtitle: 'CDSCO Controller',
+              subtitle: 'CDSCO Inspector',
               tag: 'Audit Surveillance',
               icon: Icons.security_rounded,
               color: MediLoopColors.ink,
-              onTap: auth.isLoading ? null : () => _demoLogin('admin'),
+              onTap: auth.isLoading ? null : () => _demoLogin('regulator'),
             ),
           ],
         ),
@@ -429,12 +429,15 @@ class _LoginScreenState extends State<LoginScreen> {
           children: [
             const Icon(Icons.shield_outlined, size: 13, color: MediLoopColors.verified),
             const SizedBox(width: 5),
-            Text(
-              'Instant logins pre-populated with live CDSCO audit trail data',
-              style: MediLoopText.caption.copyWith(
-                fontSize: 11.5,
-                color: MediLoopColors.textMuted,
-                fontWeight: FontWeight.w500,
+            Flexible(
+              child: Text(
+                'Instant logins pre-populated with live CDSCO audit trail data',
+                textAlign: TextAlign.center,
+                style: MediLoopText.caption.copyWith(
+                  fontSize: 11.5,
+                  color: MediLoopColors.textMuted,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
           ],

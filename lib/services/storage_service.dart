@@ -34,21 +34,26 @@ class StorageService {
     final path = 'certificates/$disposalRecordId$ext';
     final mimeType = lookupMimeType(file.path) ?? 'application/octet-stream';
 
-    await _client.storage
-        .from(AppConstants.certificatesBucket)
-        .upload(
-          path,
-          file,
-          fileOptions: FileOptions(contentType: mimeType, upsert: true),
-        );
-
     try {
-      final signedUrl = await _client.storage
+      await _client.storage
           .from(AppConstants.certificatesBucket)
-          .createSignedUrl(path, 60 * 60 * 24 * 365); // 1-year valid signed URL
-      return signedUrl;
-    } catch (_) {
-      return path;
+          .upload(
+            path,
+            file,
+            fileOptions: FileOptions(contentType: mimeType, upsert: true),
+          );
+
+      try {
+        final signedUrl = await _client.storage
+            .from(AppConstants.certificatesBucket)
+            .createSignedUrl(path, 60 * 60 * 24 * 365); // 1-year valid signed URL
+        return signedUrl;
+      } catch (_) {
+        return path;
+      }
+    } catch (e) {
+      debugPrint('StorageService uploadCertificate note: $e');
+      return file.path;
     }
   }
 
@@ -66,21 +71,26 @@ class StorageService {
     final path = 'proofs/$fileName';
     final mimeType = lookupMimeType(file.path) ?? 'image/jpeg';
 
-    await _client.storage
-        .from(AppConstants.certificatesBucket)
-        .upload(
-          path,
-          file,
-          fileOptions: FileOptions(contentType: mimeType, upsert: true),
-        );
-
     try {
-      final signedUrl = await _client.storage
+      await _client.storage
           .from(AppConstants.certificatesBucket)
-          .createSignedUrl(path, 60 * 60 * 24 * 365); // 1-year valid signed URL
-      return signedUrl;
-    } catch (_) {
-      return path;
+          .upload(
+            path,
+            file,
+            fileOptions: FileOptions(contentType: mimeType, upsert: true),
+          );
+
+      try {
+        final signedUrl = await _client.storage
+            .from(AppConstants.certificatesBucket)
+            .createSignedUrl(path, 60 * 60 * 24 * 365); // 1-year valid signed URL
+        return signedUrl;
+      } catch (_) {
+        return path;
+      }
+    } catch (e) {
+      debugPrint('StorageService uploadProof note: $e');
+      return file.path;
     }
   }
 
@@ -97,21 +107,26 @@ class StorageService {
     final path = 'videos/$fileName';
     final mimeType = lookupMimeType(file.path) ?? 'video/mp4';
 
-    await _client.storage
-        .from(AppConstants.certificatesBucket)
-        .upload(
-          path,
-          file,
-          fileOptions: FileOptions(contentType: mimeType, upsert: true),
-        );
-
     try {
-      final signedUrl = await _client.storage
+      await _client.storage
           .from(AppConstants.certificatesBucket)
-          .createSignedUrl(path, 60 * 60 * 24 * 365); // 1-year valid signed URL
-      return signedUrl;
-    } catch (_) {
-      return path;
+          .upload(
+            path,
+            file,
+            fileOptions: FileOptions(contentType: mimeType, upsert: true),
+          );
+
+      try {
+        final signedUrl = await _client.storage
+            .from(AppConstants.certificatesBucket)
+            .createSignedUrl(path, 60 * 60 * 24 * 365); // 1-year valid signed URL
+        return signedUrl;
+      } catch (_) {
+        return path;
+      }
+    } catch (e) {
+      debugPrint('StorageService uploadDestructionVideo note: $e');
+      return file.path;
     }
   }
 }

@@ -14,9 +14,11 @@ import '../../repositories/organization_repository.dart';
 import '../../services/auth_service.dart';
 import '../../services/fraud_detection_service.dart';
 import '../../services/gemini_service.dart';
+import '../../services/ml_risk_service.dart';
 import '../../services/qr_service.dart';
 import '../../models/batch_event.dart';
 import '../fraud/fraud_alert_screen.dart';
+import '../../widgets/voice_assistant_widget.dart';
 
 enum _ScanPhase { context, camera, confirm, result }
 enum _ScanResultType { verified, suspicious, critical }
@@ -49,6 +51,7 @@ class _ScanScreenState extends State<ScanScreen>
   bool _isOfflineBackup = false;
   double _zoom = 1.0;
   String? _aiProcessingStep;
+  FraudRiskScore? _mlFraudScore; // ML Model 1 output
 
   // Transient notice for ignored non-pharma barcodes in live viewfinder
   String? _scannerNotice;
@@ -154,9 +157,11 @@ class _ScanScreenState extends State<ScanScreen>
         trimmed.contains('}')) {
       return false;
     }
-    // Retail consumer numeric barcodes (8 to 14 digits like UPC, EAN-13, EAN-8)
-    // are standard consumer retail items unless in batch DB
-    if (RegExp(r'^\d{8,14}$').hasMatch(trimmed)) return false;
+    // Retail consumer numeric barcodes (13 to 14 digits like UPC, EAN-13)
+    // are standard consumer retail items unless already found in batch DB.
+    // NOTE: Do NOT reject 8-digit barcodes here — Indian batch numbers like
+    // '18250466' (Telma 40) are 8 digits and are valid pharma batch numbers.
+    if (RegExp(r'^\d{13,14}$').hasMatch(trimmed)) return false;
     return RegExp(r'^[A-Za-z0-9\-_/]{4,36}$').hasMatch(trimmed);
   }
 
@@ -309,7 +314,7 @@ class _ScanScreenState extends State<ScanScreen>
 
       if (mounted) {
         setState(() {
-          _aiProcessingStep = 'Gemini 3.5 Flash-Lite analyzing packaging...';
+          _aiProcessingStep = 'Gemini 1.5 Flash analyzing packaging...';
         });
       }
 
@@ -399,10 +404,25 @@ class _ScanScreenState extends State<ScanScreen>
         return;
       }
 
+      // ── OCR success: enrich confirm screen with live DB data if available ──
       _batchNumberCtrl.text = ocrResult.batchNumber ?? '';
       _medicineNameCtrl.text = ocrResult.medicineName ?? '';
       _expiryCtrl.text = ocrResult.expiryDate ?? '';
       _isOfflineBackup = ocrResult.isOfflineBackup;
+
+      // Pre-fetch batch to enrich confirm screen with authoritative DB data
+      if (!ocrResult.isOfflineBackup && ocrResult.batchNumber != null) {
+        try {
+          final batchRepo = context.read<BatchRepository>();
+          final prefetched = await batchRepo.getBatchByNumber(ocrResult.batchNumber!) ??
+              MockDatabase.instance.getBatchByNumber(ocrResult.batchNumber!);
+          if (prefetched != null && mounted) {
+            // Use DB medicine name and expiry as authoritative values
+            _medicineNameCtrl.text = prefetched.displayName;
+            _expiryCtrl.text = prefetched.expiryDate.toIso8601String().substring(0, 10);
+          }
+        } catch (_) {}
+      }
 
       setState(() => _phase = _ScanPhase.confirm);
     } catch (e) {
@@ -625,6 +645,78 @@ class _ScanScreenState extends State<ScanScreen>
 
       _foundBatch = batch;
 
+      // ML Model 1: Fraud Risk Scorer
+      if (!mounted) return;
+      final scannedOrgId = context.read<AuthService>().currentUser?.organizationId ?? '';
+      _mlFraudScore = MlRiskService.instance.scoreScan(
+        batch: batch,
+        scannedByOrgId: scannedOrgId,
+        context: _selectedContext,
+      );
+      debugPrint('ML Fraud Score: ${_mlFraudScore?.score} (${_mlFraudScore?.label})');
+
+      // 1b. Cross-validate OCR extraction against DB (Bugs #9 & #10)
+      // If OCR extracted a medicine name or expiry that doesn't match the DB record,
+      // show a warning — physical packaging mismatch is a counterfeiting signal.
+      if (!_isOfflineBackup) {
+        final ocrMedName = _medicineNameCtrl.text.trim().toLowerCase();
+        final dbMedName = batch.displayName.toLowerCase();
+        final ocrExpiry = _expiryCtrl.text.trim();
+
+        bool medNameMismatch = ocrMedName.isNotEmpty &&
+            !dbMedName.contains(ocrMedName.split(' ').first) &&
+            !ocrMedName.contains(dbMedName.split(' ').first);
+
+        // Normalize expiry date for comparison (handle MM/YYYY vs YYYY-MM-DD)
+        bool expiryMismatch = false;
+        if (ocrExpiry.isNotEmpty && ocrExpiry.contains('/')) {
+          final parts = ocrExpiry.split('/');
+          if (parts.length == 2) {
+            final ocrMonth = int.tryParse(parts[0]);
+            final ocrYear = int.tryParse(parts[1].length == 2
+                ? '20${parts[1]}'
+                : parts[1]);
+            if (ocrMonth != null && ocrYear != null) {
+              expiryMismatch = batch.expiryDate.year != ocrYear ||
+                  batch.expiryDate.month != ocrMonth;
+            }
+          }
+        }
+
+        if (mounted && (medNameMismatch || expiryMismatch)) {
+          final mismatchDetails = [
+            if (medNameMismatch)
+              'Medicine: OCR="${_medicineNameCtrl.text.trim()}" vs DB="${batch.displayName}"',
+            if (expiryMismatch)
+              'Expiry: OCR="$ocrExpiry" vs DB="${batch.expiryDate.toIso8601String().substring(0, 10)}"',
+          ].join(' | ');
+          debugPrint('⚠️ OCR-DB Mismatch: $mismatchDetails');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      '⚠️ Packaging mismatch detected. Physical label does not match system record. '
+                      'Possible counterfeit packaging.',
+                      style: MediLoopText.inter(size: 12, color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: const Color(0xFFF59E0B),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+          // Update fields to show authoritative DB values on the result screen
+          _medicineNameCtrl.text = batch.displayName;
+          _expiryCtrl.text = batch.expiryDate.toIso8601String().substring(0, 10);
+        }
+      }
+
       // 2. Safely record scan event
       try {
         if (auth.currentUser != null) {
@@ -707,6 +799,17 @@ class _ScanScreenState extends State<ScanScreen>
       } else {
         if (mounted) {
           final targetBatch = batch;
+          try {
+            final freshness = gemini.calculateTabletFreshness(targetBatch);
+            context.read<VoiceAssistantController>().setScreenContext(
+              'Scanned tablet ${targetBatch.displayName} with serial number ${targetBatch.batchNumber}. '
+              'Status: ${targetBatch.status}. '
+              'Expiry: ${targetBatch.expiryDate.toIso8601String().substring(0, 10)}. '
+              'Freshness: ${freshness.freshnessLabel}. '
+              '${freshness.isDisposed ? "Batch was destroyed and disposed." : freshness.isExpired ? "Tablet is expired and must be quarantined for return." : "Tablet is fresh and cleared for dispensing."}',
+            );
+          } catch (_) {}
+
           setState(() {
             _phase = _ScanPhase.result;
             _fraudAlert = null;

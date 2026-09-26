@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../core/theme.dart';
+import '../widgets/demo_presentation_overlay.dart';
 
 class ComplianceFactor {
   final String title;
@@ -140,37 +141,36 @@ class ComplianceScoreWidget extends StatelessWidget {
             ),
             const SizedBox(height: MediLoopSpacing.md),
 
-            // Large gauge / progress bar
+            // Animated ring gauge + score label
             Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Text(
-                  overallScore.toStringAsFixed(1),
-                  style: MediLoopText.plexMono(
-                    size: 36,
-                    weight: FontWeight.w700,
-                    color: color,
-                  ),
+                AnimatedComplianceRing(
+                  score: overallScore,
+                  size: 80,
                 ),
-                Text(
-                  ' / 100',
-                  style: MediLoopText.inter(
-                    size: 14,
-                    color: MediLoopColors.textMuted,
+                const SizedBox(width: MediLoopSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        rating,
+                        style: MediLoopText.inter(
+                          size: 13,
+                          weight: FontWeight.w700,
+                          color: color,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'CDSCO compliance score across ${defaultFactors.length} audited factors',
+                        style: MediLoopText.caption,
+                      ),
+                    ],
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: 8),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: (overallScore / 100).clamp(0.0, 1.0),
-                minHeight: 8,
-                backgroundColor: MediLoopColors.line,
-                valueColor: AlwaysStoppedAnimation<Color>(color),
-              ),
             ),
             const SizedBox(height: MediLoopSpacing.lg),
 

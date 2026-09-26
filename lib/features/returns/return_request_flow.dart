@@ -532,6 +532,7 @@ class _StepProofState extends State<_StepProof> {
       // 2. AI Packaging & Medicine Strip Verification
       if (!mounted) return;
       final imageBytes = await picked.readAsBytes();
+      if (!mounted) return;
       final gemini = context.read<GeminiService>();
       final validation = await gemini.validateMedicinePackaging(
         picked,

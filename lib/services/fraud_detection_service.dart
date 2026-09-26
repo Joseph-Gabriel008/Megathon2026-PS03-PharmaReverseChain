@@ -73,7 +73,16 @@ class FraudDetectionService {
     }
 
     // Rule 1: DESTROYED_BATCH_REENTRY (CRITICAL) ───────────────────────────
-    if ((batch.isDestroyed) && context.triggersDestroyedReentry) {
+    // Only fire for truly terminal destruction states (mirrors server-side RPC
+    // and QrService._processMockScanFromBatch logic).
+    const destroyedStatuses = {
+      'DESTROYED',
+      'DESTRUCTION_RECORDED',
+      'CERTIFICATION_PENDING',
+      'CERTIFIED',
+      'CLOSED',
+    };
+    if (destroyedStatuses.contains(batch.status) && context.triggersDestroyedReentry) {
       final alert = await _fireAlert(
         batchId: batch.id,
         alertType: 'DESTROYED_BATCH_REENTRY',
@@ -126,8 +135,11 @@ class FraudDetectionService {
     }
 
     // Rule 3: EXPIRED_BATCH_SALE (HIGH) ───────────────────────────────────
+    // Fires when an expired batch is found in active stock. Covers:
+    //   • status ACTIVE/EXPIRING_SOON but isExpired=true (stale DB record)
+    //   • status EXPIRED (already flagged in DB but still on active shelf)
     if (batch.isExpired &&
-        (batch.status == 'ACTIVE' || batch.status == 'EXPIRING_SOON') &&
+        const {'ACTIVE', 'EXPIRING_SOON', 'EXPIRED'}.contains(batch.status) &&
         (context == ScanContext.activeStockCheck ||
             context == ScanContext.inventoryCheck)) {
       final alert = await _fireAlert(

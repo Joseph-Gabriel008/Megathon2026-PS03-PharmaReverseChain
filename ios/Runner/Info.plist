@@ -6,6 +6,10 @@
 	<string>MediLoop uses the camera to scan medicine batch packaging and extract batch details automatically.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>MediLoop may access your photo library to upload destruction certificate documents.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>MediLoop uses the microphone for voice queries with the CDSCO compliance AI assistant.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>MediLoop uses speech recognition to transcribe spoken voice queries for pharmaceutical compliance and batch tracking.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

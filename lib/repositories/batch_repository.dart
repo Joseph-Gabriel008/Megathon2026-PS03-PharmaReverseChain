@@ -60,17 +60,18 @@ class BatchRepository {
         }
 
         if (activeReturns.isNotEmpty) {
-          return list.map((b) {
+          final mapped = list.map((b) {
             if (activeReturns.containsKey(b.id) &&
                 ['ACTIVE', 'EXPIRED', 'EXPIRING_SOON'].contains(b.status)) {
               return b.copyWith(status: activeReturns[b.id]);
             }
             return b;
           }).toList();
+          return mapped.isNotEmpty ? mapped : MockDatabase.instance.getBatchesForPharmacy(pharmacyId);
         }
       } catch (_) {}
 
-      return list;
+      return list.isNotEmpty ? list : MockDatabase.instance.getBatchesForPharmacy(pharmacyId);
     } catch (_) {
       return MockDatabase.instance.getBatchesForPharmacy(pharmacyId);
     }
@@ -87,7 +88,8 @@ class BatchRepository {
           .select('*, medicines(name, generic_name), organizations:pharmacy_id(name)')
           .eq('manufacturer_id', manufacturerId)
           .order('expiry_date');
-      return (data as List).map((e) => MedicineBatch.fromJson(e)).toList();
+      final list = (data as List).map((e) => MedicineBatch.fromJson(e)).toList();
+      return list.isNotEmpty ? list : MockDatabase.instance.getBatchesForManufacturer(manufacturerId);
     } catch (_) {
       return MockDatabase.instance.getBatchesForManufacturer(manufacturerId);
     }
@@ -114,7 +116,10 @@ class BatchRepository {
       final data = manufacturerId.isNotEmpty
           ? await query.eq('manufacturer_id', manufacturerId).order('expiry_date')
           : await query.order('expiry_date');
-      return (data as List).map((e) => MedicineBatch.fromJson(e)).toList();
+      final list = (data as List).map((e) => MedicineBatch.fromJson(e)).toList();
+      return list.isNotEmpty
+          ? list
+          : MockDatabase.instance.getPendingReturnsForManufacturer(manufacturerId);
     } catch (_) {
       return MockDatabase.instance
           .getPendingReturnsForManufacturer(manufacturerId);
@@ -136,7 +141,8 @@ class BatchRepository {
             'DISPOSAL_PENDING',
           ])
           .order('expiry_date');
-      return (data as List).map((e) => MedicineBatch.fromJson(e)).toList();
+      final list = (data as List).map((e) => MedicineBatch.fromJson(e)).toList();
+      return list.isNotEmpty ? list : MockDatabase.instance.getCollectedBatches();
     } catch (_) {
       return MockDatabase.instance.getCollectedBatches();
     }
@@ -190,7 +196,8 @@ class BatchRepository {
           .from('medicine_batches')
           .select('*, medicines(name, generic_name)')
           .order('expiry_date');
-      return (data as List).map((e) => MedicineBatch.fromJson(e)).toList();
+      final list = (data as List).map((e) => MedicineBatch.fromJson(e)).toList();
+      return list.isNotEmpty ? list : MockDatabase.instance.getAllBatches();
     } catch (_) {
       return MockDatabase.instance.getAllBatches();
     }

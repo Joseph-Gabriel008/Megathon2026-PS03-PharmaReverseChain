@@ -20,6 +20,8 @@ import '../../repositories/disposal_repository.dart';
 import '../../models/reverse_request.dart';
 import '../../repositories/reverse_repository.dart';
 import '../../widgets/cdsco_certificate_viewer.dart';
+import '../../widgets/voice_assistant_widget.dart';
+import '../../services/gemini_service.dart';
 
 /// The single screen that makes the whole product legible in 20 seconds.
 class BatchDetailScreen extends StatefulWidget {
@@ -73,6 +75,25 @@ class _BatchDetailScreenState extends State<BatchDetailScreen> {
           _returnRequest = returnReq;
           _loading = false;
         });
+
+        // Sync batch context with Voice Assistant
+        if (batch != null) {
+          try {
+            final gemini = context.read<GeminiService>();
+            final freshness = gemini.calculateTabletFreshness(batch);
+            context.read<VoiceAssistantController>().setScreenContext(
+              'Batch Detail Passport for ${batch.batchNumber} - ${batch.medicineName ?? "Medicine"}. '
+              'Lifecycle Status: ${batch.status}. '
+              'Quantity: ${batch.currentQuantity} units. '
+              'Manufactured on ${DateFormat('MMM dd, yyyy').format(batch.manufacturingDate)}, '
+              'expires on ${DateFormat('MMM dd, yyyy').format(batch.expiryDate)}. '
+              'Freshness: ${freshness.freshnessLabel}. '
+              '${freshness.isDisposed ? "Officially disposed and destroyed under CDSCO certificate." : freshness.isExpired ? "Tablet is expired (0% fresh) and must be returned." : "Tablet is fresh and cleared for dispensing."} '
+              'Chain-of-custody audit events: ${events.length}. '
+              '${cert != null ? "Certified destroyed by CDSCO facility." : "Active in supply chain."}',
+            );
+          } catch (_) {}
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -221,6 +242,7 @@ class _BatchDetailScreenState extends State<BatchDetailScreen> {
     }
 
     final batch = _batch!;
+    final gemini = context.read<GeminiService>();
 
     return Scaffold(
       backgroundColor: MediLoopColors.paper,
@@ -234,9 +256,10 @@ class _BatchDetailScreenState extends State<BatchDetailScreen> {
             ],
           ),
         ),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        child: ListView(
+      body: VoiceAssistantOverlay(
+        child: RefreshIndicator(
+          onRefresh: _load,
+          child: ListView(
           padding: const EdgeInsets.all(MediLoopSpacing.md),
           children: [
             // ── Batch summary passport card
@@ -312,6 +335,10 @@ class _BatchDetailScreenState extends State<BatchDetailScreen> {
                 ],
               ),
             ),
+            const SizedBox(height: MediLoopSpacing.md),
+
+            // ── AI Tablet Freshness & Stability Analysis Card ─────────────
+            _buildFreshnessCard(batch, gemini),
             const SizedBox(height: MediLoopSpacing.md),
 
             // ── Physical Proof Evidence Card (if return initiated with proof)
@@ -410,6 +437,13 @@ class _BatchDetailScreenState extends State<BatchDetailScreen> {
                 ),
               ),
             ],
+
+            const SizedBox(height: MediLoopSpacing.md),
+
+            // ── AI Tablet Freshness & Lifecycle Card
+            _buildFreshnessCard(batch, context.read<GeminiService>()),
+
+            const SizedBox(height: MediLoopSpacing.md),
 
             // ── CDSCO Official Destruction Certificate Banner
             if (_certificate != null || batch.status == 'DESTROYED') ...[
@@ -683,8 +717,9 @@ class _BatchDetailScreenState extends State<BatchDetailScreen> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   void _showProofInspectionDialog(BuildContext context, String proofUrl, MedicineBatch batch) {
     showDialog(
@@ -818,6 +853,221 @@ class _BatchDetailScreenState extends State<BatchDetailScreen> {
           Text(
             'Physical Packaging Proof Anchored in Ledger',
             style: MediLoopText.caption,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFreshnessCard(MedicineBatch batch, GeminiService gemini) {
+    final freshness = gemini.calculateTabletFreshness(batch);
+    final isDisposed = freshness.isDisposed;
+    final isExpired = freshness.isExpired && !isDisposed;
+    final isExpiring = freshness.isExpiringSoon && !isDisposed;
+
+    final themeColor = isDisposed
+        ? const Color(0xFF64748B)
+        : isExpired
+            ? MediLoopColors.critical
+            : isExpiring
+                ? MediLoopColors.attention
+                : MediLoopColors.verified;
+
+    final themeBg = isDisposed
+        ? const Color(0xFFF1F5F9)
+        : isExpired
+            ? MediLoopColors.criticalBg
+            : isExpiring
+                ? MediLoopColors.attentionBg
+                : MediLoopColors.verifiedBg;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: MediLoopColors.surface,
+        borderRadius: BorderRadius.circular(MediLoopRadius.card),
+        border: Border.all(color: themeColor.withValues(alpha: 0.25)),
+        boxShadow: MediLoopShadows.card,
+      ),
+      padding: const EdgeInsets.all(MediLoopSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: themeBg,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  isDisposed
+                      ? Icons.delete_outline_rounded
+                      : isExpired
+                          ? Icons.warning_rounded
+                          : isExpiring
+                              ? Icons.hourglass_bottom_rounded
+                              : Icons.verified_rounded,
+                  size: 20,
+                  color: themeColor,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'AI Tablet Freshness & Lifecycle',
+                      style: MediLoopText.plexSans(
+                        size: 15,
+                        weight: FontWeight.w700,
+                        color: MediLoopColors.ink,
+                      ),
+                    ),
+                    Text(
+                      'CDSCO Potency, Freshness Index & Disposal Verification',
+                      style: MediLoopText.inter(
+                        size: 11,
+                        color: MediLoopColors.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: themeBg,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: themeColor.withValues(alpha: 0.3)),
+                ),
+                child: Text(
+                  freshness.freshnessLabel.toUpperCase(),
+                  style: MediLoopText.inter(
+                    size: 9.5,
+                    weight: FontWeight.w800,
+                    color: themeColor,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: MediLoopSpacing.md),
+
+          // Freshness Gauge / Bar
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Stability & Potency Index',
+                    style: MediLoopText.inter(
+                      size: 12,
+                      weight: FontWeight.w600,
+                      color: MediLoopColors.textMuted,
+                    ),
+                  ),
+                  Text(
+                    '${freshness.freshnessPercentage.round()}%',
+                    style: MediLoopText.inter(
+                      size: 13,
+                      weight: FontWeight.w800,
+                      color: themeColor,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: (freshness.freshnessPercentage / 100.0).clamp(0.0, 1.0),
+                  minHeight: 8,
+                  backgroundColor: MediLoopColors.line,
+                  valueColor: AlwaysStoppedAnimation<Color>(themeColor),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: MediLoopSpacing.md),
+          const Divider(),
+          const SizedBox(height: MediLoopSpacing.sm),
+
+          _DetailRow(
+            label: 'Shelf-Life Status',
+            value: isDisposed
+                ? 'Retired (Officially Destroyed)'
+                : isExpired
+                    ? 'Expired ${(-freshness.daysRemaining)} days ago'
+                    : '${freshness.daysRemaining} days remaining',
+            warning: isExpired || isExpiring,
+          ),
+          _DetailRow(
+            label: 'Manufacturing Date',
+            value:
+                '${freshness.manufacturingDate.day.toString().padLeft(2, "0")}/${freshness.manufacturingDate.month.toString().padLeft(2, "0")}/${freshness.manufacturingDate.year}',
+          ),
+          _DetailRow(
+            label: 'Physical Assessment',
+            value: freshness.physicalStabilityReport,
+          ),
+
+          const SizedBox(height: MediLoopSpacing.sm),
+          // CDSCO Compliance Recommendation Banner
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: themeBg,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: themeColor.withValues(alpha: 0.2)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.info_outline_rounded, size: 16, color: themeColor),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    freshness.cdscoRecommendation,
+                    style: MediLoopText.inter(
+                      size: 11.5,
+                      color: themeColor,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: MediLoopSpacing.md),
+          // Ask AI Voice Assistant Button
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                final ctrl = context.read<VoiceAssistantController>();
+                ctrl.show();
+                ctrl.submitQuestion(
+                  'Help in the analysis of tablet ${batch.batchNumber} whether it is expired or fresh.',
+                  gemini,
+                );
+              },
+              style: OutlinedButton.styleFrom(
+                foregroundColor: MediLoopColors.accent,
+                side: const BorderSide(color: MediLoopColors.accent),
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              icon: const Icon(Icons.auto_awesome, size: 16),
+              label: const Text('Ask AI Voice Assistant to Analyze Freshness'),
+            ),
           ),
         ],
       ),
@@ -1030,3 +1280,4 @@ class _TimelineEntry extends StatelessWidget {
   String _formatTimestamp(DateTime dt) =>
       DateFormat('dd MMM, HH:mm').format(dt);
 }
+

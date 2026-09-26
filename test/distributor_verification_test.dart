@@ -18,6 +18,7 @@ import 'package:mediloop/repositories/organization_repository.dart';
 import 'package:mediloop/repositories/confirmation_repository.dart';
 import 'package:mediloop/repositories/evidence_repository.dart';
 import 'package:mediloop/services/evidence_service.dart';
+import 'package:mediloop/widgets/voice_assistant_widget.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -34,6 +35,7 @@ void main() {
       MultiProvider(
         providers: [
           ChangeNotifierProvider<AuthService>.value(value: authService),
+          ChangeNotifierProvider(create: (_) => VoiceAssistantController()),
           Provider(create: (_) => GeminiService()),
           Provider(create: (_) => FraudDetectionService(fakeClient)),
           Provider(create: (_) => StorageService(fakeClient)),
@@ -72,7 +74,10 @@ void main() {
     expect(authService.isLoggedIn, isTrue);
     expect(authService.currentRole, 'DISTRIBUTOR');
 
-    await tester.pumpAndSettle();
+    // Use pump with a fixed duration after login — pumpAndSettle would timeout
+    // because async data loading and GeminiService keep the frame queue active.
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 3));
 
     // Verify redirected to Distributor Dashboard
     expect(find.text('Distributor Dashboard'), findsOneWidget);
@@ -80,7 +85,8 @@ void main() {
 
     // Navigate to profile tab
     await tester.tap(find.byIcon(Icons.person_outlined));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 2));
 
     // Verify Profile page renders
     expect(find.text('My Profile'), findsOneWidget);

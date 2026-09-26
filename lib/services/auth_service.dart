@@ -61,7 +61,9 @@ class AuthService extends ChangeNotifier {
       'admin' ||
       'regulator' ||
       'cdsco' ||
-      'admin@cdsco.gov.in' =>
+      'admin@cdsco.gov.in' ||
+      'regulator@demo.com' ||
+      'regulator@cdsco.gov.in' =>
         'admin@demo.com',
       _ => clean,
     };
@@ -71,9 +73,13 @@ class AuthService extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
-      final emailKey = AppConstants.demoLogins[role.toLowerCase()] ??
-          normalizeEmail(role);
-      final mockUser = MockDatabase.instance.getUser(emailKey);
+      // Resolve the email: first try demoLogins map, then normalize
+      final roleKey = role.toLowerCase();
+      final rawEmail = AppConstants.demoLogins[roleKey] ?? normalizeEmail(roleKey);
+      // normalizeEmail ensures regulator@demo.com -> admin@demo.com
+      final emailKey = normalizeEmail(rawEmail);
+      final mockUser = MockDatabase.instance.getUser(emailKey)
+          ?? MockDatabase.instance.getUser(rawEmail);
       if (mockUser != null) {
         _currentUser = mockUser;
       }
@@ -178,7 +184,7 @@ class AuthService extends ChangeNotifier {
         _currentUser = mockUser;
         return null;
       }
-      return 'Login failed. Check your connection or use demo access.';
+      return 'Login failed. Check your credentials or network connection.';
     } finally {
       _isLoading = false;
       notifyListeners();

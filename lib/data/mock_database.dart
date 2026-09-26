@@ -122,6 +122,15 @@ class MockDatabase {
       organizationId: 'org-admin-01',
       organizationName: 'CDSCO Southern Regional Office',
     );
+    // regulator@demo.com is an alias that maps to the same REGULATOR account
+    _users['regulator@demo.com'] = const AppUser(
+      id: 'usr-admin-01',
+      name: 'Inspector Rajesh Sharma',
+      email: 'regulator@demo.com',
+      role: 'REGULATOR',
+      organizationId: 'org-admin-01',
+      organizationName: 'CDSCO Southern Regional Office',
+    );
 
     // Batches
     final now = DateTime.now();

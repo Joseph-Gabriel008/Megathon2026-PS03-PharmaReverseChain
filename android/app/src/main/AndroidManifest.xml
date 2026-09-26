@@ -4,6 +4,9 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- Network for Supabase and Gemini API -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Audio & Voice for MediLoop AI Assistant -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.BLUETOOTH" />
     <!-- Storage for certificate upload -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" tools:replace="android:maxSdkVersion"/>
@@ -52,6 +55,14 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- Speech Recognition for MediLoop AI Assistant -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <!-- Text To Speech for MediLoop AI Voice Assistant -->
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>
     </queries>
 </manifest>

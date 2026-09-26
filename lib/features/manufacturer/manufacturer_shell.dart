@@ -13,12 +13,15 @@ import '../../models/reverse_request.dart';
 import '../../services/auth_service.dart';
 import '../../services/evidence_service.dart';
 import '../../services/qr_service.dart';
+import '../../services/gemini_service.dart';
 import '../../models/medicine_batch.dart';
 import '../../models/disposal_record.dart';
 import '../../widgets/batch_card.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/cdsco_certificate_viewer.dart';
 import '../../widgets/app_back_scope.dart';
+import '../../widgets/voice_assistant_widget.dart';
+import '../../widgets/demo_presentation_overlay.dart';
 
 class ManufacturerShell extends StatelessWidget {
   final Widget child;
@@ -32,7 +35,7 @@ class ManufacturerShell extends StatelessWidget {
     return AppBackScope(
       homeRoute: '/manufacturer',
       child: Scaffold(
-        body: child,
+        body: VoiceAssistantOverlay(child: child),
       bottomNavigationBar: NavigationBar(
         selectedIndex: index,
         onDestinationSelected: (i) {
@@ -106,6 +109,7 @@ class _ManufacturerDashboardPageState
   List<MedicineBatch> _pipelineBatches = [];
   List<ReverseRequest> _returnRequests = [];
   bool _loading = true;
+  DateTime? _syncedAt;
 
   @override
   void initState() {
@@ -129,7 +133,19 @@ class _ManufacturerDashboardPageState
         _pipelineBatches = pipelineData;
         _returnRequests = returnReqs;
         _loading = false;
+        _syncedAt = DateTime.now();
       });
+
+      // Sync manufacturer dashboard context with Voice Assistant
+      try {
+        context.read<VoiceAssistantController>().setScreenContext(
+          'Manufacturer Pharmaceutical Operations Dashboard. '
+          'Incoming returned batches: ${incomingData.length}. '
+          'Active reverse pipeline batches: ${pipelineData.length}. '
+          'Pending return authorization requests: ${returnReqs.length}. '
+          'CDSCO batch authentication and quarantine workflow active.',
+        );
+      } catch (_) {}
     }
   }
 
@@ -430,6 +446,11 @@ class _ManufacturerDashboardPageState
                             color: MediLoopColors.verified),
                       ),
                     ),
+                    if (_syncedAt != null) ...
+                    [
+                      const SizedBox(width: 8),
+                      LiveSyncPulse(syncedAt: _syncedAt!),
+                    ],
                   ],
                 ),
               ),
@@ -1689,6 +1710,40 @@ class _OwnInventoryDisposalSheetState extends State<_OwnInventoryDisposalSheet> 
         imageQuality: 85,
       );
       if (picked == null) return;
+
+      final imageBytes = await picked.readAsBytes();
+      if (!mounted) return;
+      final gemini = context.read<GeminiService>();
+      final validation = await gemini.validateMedicinePackaging(
+        picked,
+        bytes: imageBytes,
+        expectedMedicineName: _selectedBatch?.medicineName,
+        expectedBatchNumber: _selectedBatch?.batchNumber,
+      );
+
+      if (!validation.isValid) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: MediLoopColors.critical,
+              duration: const Duration(seconds: 4),
+              content: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      validation.message,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+        return;
+      }
 
       bool qrOk = false;
       if (_selectedBatch != null) {

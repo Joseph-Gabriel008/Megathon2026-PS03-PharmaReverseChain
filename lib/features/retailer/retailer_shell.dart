@@ -5,13 +5,18 @@ import 'package:provider/provider.dart';
 import '../../core/theme.dart';
 import '../../repositories/batch_repository.dart';
 import '../../services/auth_service.dart';
+import '../../services/gemini_service.dart';
+import '../../services/ml_risk_service.dart';
 import '../../widgets/batch_card.dart';
+import '../../widgets/ml_inventory_health_widget.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/app_back_scope.dart';
 import '../../repositories/reverse_repository.dart';
+import '../../widgets/voice_assistant_widget.dart';
 import '../../models/medicine_batch.dart';
 import '../../models/reverse_request.dart';
 import 'package:intl/intl.dart';
+import '../../widgets/demo_presentation_overlay.dart';
 
 class RetailerShell extends StatelessWidget {
   final Widget child;
@@ -25,8 +30,8 @@ class RetailerShell extends StatelessWidget {
     return AppBackScope(
       homeRoute: '/retailer',
       child: Scaffold(
-        body: child,
-      bottomNavigationBar: NavigationBar(
+        body: VoiceAssistantOverlay(child: child),
+        bottomNavigationBar: NavigationBar(
         selectedIndex: index,
         onDestinationSelected: (i) {
           switch (i) {
@@ -92,6 +97,12 @@ class _RetailerDashboardPageState extends State<RetailerDashboardPage> {
   List<MedicineBatch> _recentBatches = [];
   bool _loading = true;
 
+  // ML model fields
+  BatchHealthSummary? _inventoryHealth;
+  String? _aiBriefing;
+  bool _healthLoading = false;
+  DateTime? _syncedAt;
+
   @override
   void initState() {
     super.initState();
@@ -112,13 +123,57 @@ class _RetailerDashboardPageState extends State<RetailerDashboardPage> {
           setState(() {
             _stats = stats;
             _recentBatches = batches.take(4).toList();
+            _syncedAt = DateTime.now();
           });
+
+          // Run ML inventory health classifier in background
+          _runMlAnalysis(batches, auth.currentUser!.organizationName ?? 'Apollo Pharmacy');
         }
       }
     } catch (_) {
       // Use default zeros on error
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _runMlAnalysis(List<MedicineBatch> batches, String orgName) async {
+    if (mounted) setState(() => _healthLoading = true);
+    try {
+      // Model 3: Batch Health Classifier
+      final health = MlRiskService.instance.classifyInventoryHealth(batches);
+
+      // AI-6: Generate expiry risk briefing via Gemini
+      final gemini = context.read<GeminiService>();
+      final briefing = await gemini.generateExpiryRiskBriefing(
+        expiringCount: _stats['expiring_soon'] ?? 0,
+        expiredCount: _stats['expired'] ?? 0,
+        criticalRiskCount: health.critical,
+        organizationName: orgName,
+      );
+
+      if (mounted) {
+        setState(() {
+          _inventoryHealth = health;
+          _aiBriefing = briefing;
+          _healthLoading = false;
+        });
+
+        // Sync live dashboard data with Voice Assistant
+        try {
+          context.read<VoiceAssistantController>().setScreenContext(
+            'Pharmacy Retailer Dashboard for $orgName. '
+            'Active batches: ${_stats['active'] ?? 0}. '
+            'Expiring within 90 days: ${_stats['expiring_soon'] ?? 0}. '
+            'Expired batches: ${_stats['expired'] ?? 0}. '
+            'Pending reverse returns: ${_stats['pending_returns'] ?? 0}. '
+            'ML Inventory Health engine flags ${health.critical} batch as critical priority and ${health.atRisk} at risk. '
+            '$briefing',
+          );
+        } catch (_) {}
+      }
+    } catch (e) {
+      if (mounted) setState(() => _healthLoading = false);
     }
   }
 
@@ -205,39 +260,29 @@ class _RetailerDashboardPageState extends State<RetailerDashboardPage> {
                           ],
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF10B981).withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: const Color(0xFF10B981).withValues(alpha: 0.5),
+                      // Live sync pulse (replaces static ONLINE badge)
+                      if (_syncedAt != null)
+                        LiveSyncPulse(syncedAt: _syncedAt!)
+                      else
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF10B981).withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: const Color(0xFF10B981).withValues(alpha: 0.5),
+                            ),
+                          ),
+                          child: const Text(
+                            'ONLINE',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF10B981),
+                              letterSpacing: 0.5,
+                            ),
                           ),
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 6,
-                              height: 6,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Color(0xFF10B981),
-                              ),
-                            ),
-                            const SizedBox(width: 5),
-                            const Text(
-                              'ONLINE',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF10B981),
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -329,6 +374,35 @@ class _RetailerDashboardPageState extends State<RetailerDashboardPage> {
                       ),
                     ],
                   ),
+
+            const SizedBox(height: MediLoopSpacing.lg),
+
+            // ── ML Inventory Health Section ─────────────────────────────────
+            Row(
+              children: [
+                Container(
+                  width: 20,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    color: MediLoopColors.accentBg,
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: const Icon(Icons.auto_awesome, size: 12, color: MediLoopColors.accent),
+                ),
+                const SizedBox(width: 8),
+                Text('AI Risk Intelligence', style: MediLoopText.h4),
+              ],
+            ),
+            const SizedBox(height: MediLoopSpacing.sm),
+            if (_healthLoading || _inventoryHealth != null)
+              MlInventoryHealthWidget(
+                health: _inventoryHealth ?? BatchHealthSummary(
+                  safe: 0, watch: 0, atRisk: 0, critical: 0,
+                  total: 0, rankedBatches: [],
+                ),
+                aiBriefing: _aiBriefing,
+                isLoading: _healthLoading,
+              ),
 
             const SizedBox(height: MediLoopSpacing.lg),
 

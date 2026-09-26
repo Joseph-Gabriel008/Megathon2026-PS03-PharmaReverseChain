@@ -10,6 +10,7 @@ import '../../models/organization.dart';
 import '../../widgets/batch_card.dart';
 import '../../widgets/lifecycle_pipeline.dart';
 import '../../widgets/status_badge.dart';
+import '../../widgets/voice_assistant_widget.dart';
 import '../../services/gemini_service.dart';
 import '../../services/audit_service.dart';
 import '../../services/auth_service.dart';
@@ -35,7 +36,7 @@ class AdminShell extends StatelessWidget {
             children: [
               _AdminSidebar(currentPath: location),
               const VerticalDivider(width: 1),
-              Expanded(child: child),
+              Expanded(child: VoiceAssistantOverlay(child: child)),
             ],
           ),
         ),
@@ -46,7 +47,7 @@ class AdminShell extends StatelessWidget {
     return AppBackScope(
       homeRoute: '/admin',
       child: Scaffold(
-        body: child,
+        body: VoiceAssistantOverlay(child: child),
         bottomNavigationBar: NavigationBar(
           selectedIndex: _indexForPath(location),
           onDestinationSelected: (i) {
@@ -280,6 +281,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   bool _loading = true;
   RealtimeChannel? _fraudChannel;
 
+  // Sentinel AI query fields
+  final _sentinelCtrl = TextEditingController();
+  String? _sentinelAnswer;
+  bool _sentinelLoading = false;
+
   @override
   void initState() {
     super.initState();
@@ -290,6 +296,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   @override
   void dispose() {
     _fraudChannel?.unsubscribe();
+    _sentinelCtrl.dispose();
     super.dispose();
   }
 
@@ -317,6 +324,18 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           _openAlerts = alerts.length;
           _loading = false;
         });
+
+        // Sync live regulator dashboard with Voice Assistant
+        try {
+          context.read<VoiceAssistantController>().setScreenContext(
+            'CDSCO Sentinel Regulator Hub. '
+            'Active batches tracked across India: $activeBatches. '
+            'Registered pharmaceutical organizations: ${orgs.length}. '
+            'Open fraud anomalies: ${alerts.length}. '
+            'Expired batches requiring destruction: ${_stageCounts['EXPIRED'] ?? 0}. '
+            'CDSCO real-time sentinel and cryptographically-verified audit pipeline are active.',
+          );
+        } catch (_) {}
       }
     } catch (e) {
       debugPrint('AdminDashboard _load note: $e');
@@ -393,6 +412,19 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       'Certified': (_stageCounts['CERTIFIED'] ?? 0) +
           (_stageCounts['CLOSED'] ?? 0),
     };
+  }
+
+  Future<void> _askSentinel() async {
+    final question = _sentinelCtrl.text.trim();
+    if (question.isEmpty) return;
+    setState(() => _sentinelLoading = true);
+    try {
+      final gemini = context.read<GeminiService>();
+      final answer = await gemini.sentinelQuery(question: question, alerts: _alerts, systemStats: _stageCounts);
+      if (mounted) setState(() { _sentinelAnswer = answer; _sentinelLoading = false; });
+    } catch (e) {
+      if (mounted) setState(() { _sentinelAnswer = 'Sentinel offline: $e'; _sentinelLoading = false; });
+    }
   }
 
   @override
@@ -591,6 +623,65 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                         onTap: () => context.go('/admin/fraud'),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: MediLoopSpacing.lg),
+
+                  // ── Sentinel AI Query Panel ──────────────────────────────
+                  Container(
+                    decoration: BoxDecoration(
+                      color: MediLoopColors.surface,
+                      borderRadius: BorderRadius.circular(MediLoopRadius.card),
+                      border: Border.all(color: MediLoopColors.line),
+                      boxShadow: MediLoopShadows.card,
+                    ),
+                    padding: const EdgeInsets.all(MediLoopSpacing.md),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          Container(width: 28, height: 28,
+                            decoration: BoxDecoration(color: MediLoopColors.accentBg, borderRadius: BorderRadius.circular(8)),
+                            child: const Icon(Icons.auto_awesome, size: 14, color: MediLoopColors.accent)),
+                          const SizedBox(width: 8),
+                          Text('Sentinel AI', style: MediLoopText.inter(size: 13.5, weight: FontWeight.w700, color: MediLoopColors.ink)),
+                          const SizedBox(width: 6),
+                          Text('Ask anything about the supply chain', style: MediLoopText.caption.copyWith(fontSize: 11)),
+                        ]),
+                        const SizedBox(height: 10),
+                        Row(children: [
+                          Expanded(child: TextField(
+                            controller: _sentinelCtrl,
+                            decoration: InputDecoration(
+                              hintText: 'e.g. How many critical alerts this week?',
+                              hintStyle: MediLoopText.inter(size: 13, color: MediLoopColors.textSubtle),
+                              filled: true, fillColor: MediLoopColors.paper,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: MediLoopColors.line)),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            ),
+                            style: MediLoopText.inter(size: 13, color: MediLoopColors.ink),
+                            onSubmitted: (_) => _askSentinel(),
+                          )),
+                          const SizedBox(width: 8),
+                          FilledButton(
+                            onPressed: _sentinelLoading ? null : _askSentinel,
+                            style: FilledButton.styleFrom(backgroundColor: MediLoopColors.accent, padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                            child: _sentinelLoading ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.send_rounded, size: 18, color: Colors.white),
+                          ),
+                        ]),
+                        if (_sentinelAnswer != null) ...[ 
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(color: MediLoopColors.accentBg, borderRadius: BorderRadius.circular(10), border: Border.all(color: MediLoopColors.accent.withValues(alpha: 0.2))),
+                            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              const Icon(Icons.auto_awesome, size: 14, color: MediLoopColors.accent),
+                              const SizedBox(width: 8),
+                              Expanded(child: Text(_sentinelAnswer!, style: MediLoopText.inter(size: 13, color: MediLoopColors.ink, height: 1.4))),
+                            ]),
+                  ),
+                        ],
+                      ],
+                    ),
                   ),
                   const SizedBox(height: MediLoopSpacing.lg),
 
